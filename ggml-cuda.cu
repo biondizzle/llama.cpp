@@ -67,9 +67,11 @@
 #define cudaGetLastError hipGetLastError
 #ifdef GGML_HIP_UMA
 #define cudaMalloc hipMallocManaged
+#define cudaMallocManaged hipMallocManaged
 #define cudaMallocHost(ptr, size) hipHostMalloc(ptr, size)
 #else
 #define cudaMalloc hipMalloc
+#define cudaMallocManaged hipMalloc
 #define cudaMallocHost(ptr, size) hipHostMalloc(ptr, size, hipHostMallocDefault)
 #endif
 #define cudaMemcpy hipMemcpy
@@ -7448,7 +7450,7 @@ static void * ggml_cuda_pool_malloc_leg(int device, size_t size, size_t * actual
     size_t look_ahead_size = (size_t) (1.05 * size);
     look_ahead_size = 256 * ((look_ahead_size + 255)/256);
     ggml_cuda_set_device(device);
-    CUDA_CHECK(cudaMalloc((void **) &ptr, look_ahead_size));
+    CUDA_CHECK(cudaMallocManaged((void **) &ptr, look_ahead_size));
     *actual_size = look_ahead_size;
     g_cuda_pool_size[device] += look_ahead_size;
 #ifdef DEBUG_CUDA_MALLOC
@@ -10373,12 +10375,12 @@ GGML_CALL static ggml_backend_buffer_t ggml_backend_cuda_buffer_type_alloc_buffe
 
     ggml_cuda_set_device(buft_ctx->device);
 
-    size = std::max(size, (size_t)1); // cudaMalloc returns null for size 0
+    size = std::max(size, (size_t)1); // cudaMallocManaged returns null for size 0
 
     void * dev_ptr;
-    cudaError_t err = cudaMalloc(&dev_ptr, size);
+    cudaError_t err = cudaMallocManaged(&dev_ptr, size);
     if (err != cudaSuccess) {
-        fprintf(stderr, "%s: allocating %.2f MiB on device %d: cudaMalloc failed: %s\n", __func__, size/1024.0/1024.0, buft_ctx->device, cudaGetErrorString(err));
+        fprintf(stderr, "%s: allocating %.2f MiB on device %d: cudaMallocManaged failed: %s\n", __func__, size/1024.0/1024.0, buft_ctx->device, cudaGetErrorString(err));
         return nullptr;
     }
 
@@ -10530,11 +10532,11 @@ GGML_CALL static void ggml_backend_cuda_split_buffer_init_tensor(ggml_backend_bu
             size += ggml_row_size(tensor->type, MATRIX_ROW_PADDING - ne0 % MATRIX_ROW_PADDING);
         }
 
-        // FIXME: do not crash if cudaMalloc fails
+        // FIXME: do not crash if cudaMallocManaged fails
         // currently, init_tensor cannot fail, it needs to be fixed in ggml-backend first
         ggml_cuda_set_device(id);
         char * buf;
-        CUDA_CHECK(cudaMalloc(&buf, size));
+        CUDA_CHECK(cudaMallocManaged(&buf, size));
 
         // set padding to 0 to avoid possible NaN values
         if (size > original_size) {
